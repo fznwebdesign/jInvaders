@@ -1,4 +1,4 @@
 jInvaders
 =========
 
-A hobbie project to create a jQuery Space Invaders plugin
+A hobby project to create a jQuery Space Invaders plugin
