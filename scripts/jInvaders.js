@@ -1,5 +1,5 @@
 /**
- * Pedro Carrazco | jInvaders 0.1
+ * Pedro Carrazco | jInvaders 1.0
  * 
  * This project is just a hobbie, created by Pedro Carrazco,
  * reproduction is totally allowed as this code is just for fun.
@@ -14,36 +14,33 @@
 $.Invaders = function(el,values){
 	/* Defaults */
 	var defaults = {
-		grid: [50,20],  // Grid size / Tamaño de cuadricula
 		start: true,    // Start after load / Iniciar despues de cargar
-		speed: 300,     // Speed in miliseconds / Velocidad en milisegundos
+		level: 0,     // Speed in miliseconds / Velocidad en milisegundos
 		$el: el,        // The jQuery container / El contenedor como objeto jQuery
 		t: null
 	};
 	this.vals = defaults;
 	$.extend(this.vals,values);
-	if(!this.validateGrid(this.vals.grid)){
-		this.vals.grid = defaults.grid;
-	}
 	// Initialize / Comenzar
 	this.init();
 };
 $.Invaders.prototype = {
 	vGrid:[],
+	grid: [50,30],
+	animation: {
+		sDelay:0,
+		sCount:0,
+		mDelay:1,
+		mCount:1
+	},
 	$grid:null,
 	invaders:[],
+	level: null,
+	dir: "r",
 	init:function(){
 		this.genCSS();
 		this.renderGrid();
-		
-		// test
-		this.invaders[0] = new $.Invaders.Invader("c1",[0,0],this,0);
-		this.invaders[1] = new $.Invaders.Invader("c1",[12,0],this,1);
-		this.invaders[2] = new $.Invaders.Invader("c1",[24,0],this,2);
-		this.invaders[3] = new $.Invaders.Invader("c1",[0,9],this,3);
-		this.invaders[4] = new $.Invaders.Invader("c1",[12,9],this,4);
-		this.invaders[5] = new $.Invaders.Invader("c1",[24,9],this,5);
-		
+		this.loadLevel();
 		this.attachEvents();
 		if(this.vals.start){
 			this.begin();
@@ -145,16 +142,9 @@ $.Invaders.prototype = {
 			r = 0,
 			self = this,
 			i,j,$c,$r,vC,vR,width,height,cell;
-		// Min / Max grid sizes (private)
-		// Tamaños Maximo y Minimo de la cuadricula (variable privada)
-		gridLimits = [5,150];
-		// Apply Min / Max size limits
-		// Ajustar el tamaño dentro de los limites
-		this.vals.grid[0] = (this.vals.grid[0] < gridLimits[0]) ? gridLimits[0] : (this.vals.grid[0] > gridLimits[1]) ? gridLimits[1] : this.vals.grid[0];
-		this.vals.grid[1] = (this.vals.grid[1] < gridLimits[0]) ? gridLimits[0] : (this.vals.grid[1] > gridLimits[1]) ? gridLimits[1] : this.vals.grid[1];
 		
-		c = this.vals.grid[0];
-		r = this.vals.grid[1];
+		c = this.grid[0];
+		r = this.grid[1];
 		this.vGrid = [];
 		this.$grid = $("<div>");
 		this.$grid.attr("id","GRID");
@@ -176,25 +166,31 @@ $.Invaders.prototype = {
 		
 		setTimeout(function(){
 			// Fix grid size / Fijar el tamaño de la cuadricula
-			width = (parseInt(self.$grid.find(".cell").css("width"))*self.vals.grid[0]);
-			height = (parseInt(self.$grid.find(".cell").css("height"))*self.vals.grid[1]);
+			width = (parseInt(self.$grid.find(".cell").css("width"))*self.grid[0]);
+			height = (parseInt(self.$grid.find(".cell").css("height"))*self.grid[1]);
 			self.$grid.css({width:width+"px",height:height+"px"});
 			self.vals.$el.find(".GRIDControl").css({width:width+"px",height:height+"px"});
 		},10)
 	},
-	validateGrid: function(grid){
-		// Check format / Revisar el formato
-		var res = (!grid instanceof Array || grid.length != 2 || typeof grid[0] != "number" || typeof grid[1] != "number") ? false : true;
-		// Validate position / Revisar que la posicion sea valida
-		res = (grid[0] < 0) ? false : res;
-		res = (grid[1] < 0) ? false : res;
-		return res;
+	loadLevel: function(){
+		var i,len,inv;
+		this.invaders = [];
+		this.level = (typeof $.Invaders.levels[this.vals.level] != "undefined") ? $.Invaders.levels[this.vals.level] : this.level;
+		this.vals.speed = this.level.speed;
+		
+		for(i=0,len=this.level.enemies.length;i<len;i++){
+			inv = this.level.enemies[i];
+			this.invaders[i] = new $.Invaders.Invader(inv,this,i);
+		}
+		
+		this.vals.speed = this.level.speed;
+		
 	},
 	genCSS: function(){
 		var css = "",$el=null;
 		if($("GRIDCSS").length<=0){
 			css += "#GRID{background-color:#F9F9F9;border:1px solid #CCC;padding:0 1px 1px 0;position:relative;overflow:visible;}";
-			css += "#GRID .cell{height:5px;width:5px;background-color:#FFF;}";
+			css += "#GRID .cell{height:3px;width:3px;background-color:#FFF;}";
 			css += "#GRID .cell.inv{background-color:#000;}";
 			css += "#GRID .col {float:left;}";
 			css += "#GRID input.GRIDControl{opacity:0;filter:alpha(opacity=0);position:absolute;top:0;left:0;cursor:pointer !important}";
@@ -204,11 +200,59 @@ $.Invaders.prototype = {
 		}
 	},
 	go:function(){
-		var i,len;
+		var i,len,
+			anim = false,
+			move = false;
+		if(this.animation.mCount>0){
+			this.animation.mCount--
+		}else{
+			this.animation.mCount = this.animation.mDelay;
+			move = true;
+			this.checkDir();
+		}
+		if(this.animation.sCount>0){
+			this.animation.sCount--
+		}else{
+			this.animation.sCount = this.animation.sDelay;
+			anim = true;
+		}
 		for(i=0,len=this.invaders.length;i<len;i++){
-			this.invaders[i].turn();
+			if(anim){
+				this.invaders[i].anim();
+			}
+			if(move){
+				this.invaders[i].move();
+			}
 		}
 		this.begin();
+	},
+	checkDir: function(){
+		var reached = false,
+			last = this.vGrid.length-2,
+			i,len,newDir;
+		for(i=0,len=this.vGrid[1].length;i<len;i++){
+			if(this.vGrid[1][i].state() != "off"){
+				reached = "l";
+				break;
+			}
+		}	
+		for(i=0,len=this.vGrid[last].length;i<len;i++){
+			if(this.vGrid[last][i].state() != "off"){
+				reached = "r";
+				break;
+			}
+		}
+		if(reached){
+			switch(this.dir){
+				case "b":
+					newDir = (reached == "r") ? "l" : "r";
+				break;
+				default:
+					newDir = "b";
+			}
+			console.log(newDir);
+			this.dir = newDir;
+		}
 	},
 	begin: function(){
 		var self = this;
@@ -273,18 +317,12 @@ $.Invaders.Cell.prototype = {
                 return coords;
         }
 };
-$.Invaders.Invader = function(kind,pos,game,id){
+$.Invaders.Invader = function(inv,game,id){
 	this.id = id;
 	this.life = 1;
-	this.animation = {
-		sDelay:1,
-		sCount:1,
-		mDelay:3,
-		mCount:3
-	};
 	this.step = 0;
-	this.pos = pos;
-	this.kind = kind;
+	this.pos = inv.pos;
+	this.kind = inv.kind;
 	this.kindData = [];
 	this.cells = [];
 	this.grid = [];
@@ -302,20 +340,41 @@ $.Invaders.Invader.prototype = {
 		this.setCells();
 		this.redraw(this.kindData.initial);
 	},
-	turn: function(){
-		if(this.animation.sCount>0){
-			this.animation.sCount--
-		}else{
-			this.animation.sCount = this.animation.sDelay;
-			this.redraw(this.kindData.variation);
+	anim: function(){
+		this.redraw(this.kindData.variation);
+	},
+	move: function(){
+		this.clear();
+		this.nextMove(this.game.dir)
+		this.redraw(this.kindData.initial);
+	},
+	nextMove: function(dir){
+		switch(dir){
+			case "t":
+				this.pos[1]--;
+			break;
+			case "b":
+				this.pos[1] = this.pos[1]+2;
+			break;
+			case "l":
+				this.pos[0]--;
+			break;
+			case "r":
+				this.pos[0]++;
+			break;
+			
 		}
+		console.log("nextMove", this.pos,dir)
+		this.setCells();
 	},
 	setCells: function(){
 		var i,j,vC,vR;
+		this.grid=[];
 		for(i=0;i<this.kindData.size[0];i++){
 			vC = [];
 			for(j=0;j<this.kindData.size[1];j++){
 				vR = this.game.vGrid[i+this.pos[0]][j+this.pos[1]];
+				vR.state("off");
 				vC.push(vR);
 			}
 			this.grid.push(vC);
@@ -336,9 +395,23 @@ $.Invaders.Invader.prototype = {
 };
 $.Invaders.kinds = {
 	"c1": {
-		size:[11,8],
-		initial:[[2,0],[8,0],[3,1],[7,1],[2,2],[3,2],[4,2],[5,2],[6,2],[7,2],[8,2],[1,3],[2,3],[4,3],[5,3],[6,3],[8,3],[9,3],[0,4],[1,4],[2,4],[3,4],[4,4],[5,4],[6,4],[7,4],[8,4],[9,4],[10,4],[0,5],[2,5],[3,5],[4,5],[5,5],[6,5],[7,5],[8,5],[10,5],[0,6],[2,6],[8,6],[10,6],[3,7],[4,7],[6,7],[7,7]],
-		variation:[[0,1],[10,1],[0,2],[10,2],[0,3],[10,3],[0,5],[1,5],[9,5],[10,5],[0,6],[10,6],[1,7],[3,7],[4,7],[6,7],[7,7],[9,7]]
+		size:[13,8],
+		life:1,
+		initial:[[3,0],[9,0],[4,1],[8,1],[3,2],[4,2],[5,2],[6,2],[7,2],[8,2],[9,2],[2,3],[3,3],[5,3],[6,3],[7,3],[9,3],[10,3],[1,4],[2,4],[3,4],[4,4],[5,4],[6,4],[7,4],[8,4],[9,4],[10,4],[11,4],[1,5],[3,5],[4,5],[5,5],[6,5],[7,5],[8,5],[9,5],[11,5],[1,6],[3,6],[9,6],[11,6],[4,7],[5,7],[7,7],[8,7]],
+		variation:[[1,1],[11,1],[1,2],[11,2],[1,3],[11,3],[1,5],[2,5],[10,5],[11,5],[1,6],[11,6],[2,7],[4,7],[5,7],[7,7],[8,7],[10,7]]
+	}
+};
+$.Invaders.levels = {
+	0: {
+		speed: 300,
+		enemies: [
+			{kind:"c1",pos:[0,0]}/*,
+			{kind:"c1",pos:[12,0]},
+			{kind:"c1",pos:[24,0]},
+			{kind:"c1",pos:[0,9]},
+			{kind:"c1",pos:[12,9]},
+			{kind:"c1",pos:[24,9]}*/
+		]
 	}
 };
 // jQuery Plugin
