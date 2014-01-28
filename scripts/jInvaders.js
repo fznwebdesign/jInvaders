@@ -1,10 +1,10 @@
 /**
  * Pedro Carrazco | jInvaders 1.0
  * 
- * This project is just a hobbie, created by Pedro Carrazco,
+ * This project is just a hobby, created by Pedro Carrazco,
  * reproduction is totally allowed as this code is just for fun.
  * 
- * Este proyecto es solamente un hobbie, creado por Pedro Carrazco,
+ * Este proyecto es solamente un hobby, creado por Pedro Carrazco,
  * cualquier reproduccion es permitida debido a que este codigo tiene 
  * fines unicamente de entretenimiento.
  * 
