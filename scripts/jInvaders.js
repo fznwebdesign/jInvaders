@@ -1,10 +1,10 @@
 /**
- * Pedro Carrazco | jInvaders 1.0
+ * Pedro Carrazco | jInvaders 0.1
  * 
- * This project is just a hobby, created by Pedro Carrazco,
+ * This project is just a hobbie, created by Pedro Carrazco,
  * reproduction is totally allowed as this code is just for fun.
  * 
- * Este proyecto es solamente un hobby, creado por Pedro Carrazco,
+ * Este proyecto es solamente un hobbie, creado por Pedro Carrazco,
  * cualquier reproduccion es permitida debido a que este codigo tiene 
  * fines unicamente de entretenimiento.
  * 
@@ -230,7 +230,7 @@ $.Invaders.prototype = {
 		var reached = false,
 			last = this.vGrid.length-2,
 			i,len,newDir;
-		for(i=0,len=this.vGrid[1].length;i<len;i++){
+		for(i=0,len=this.vGrid[0].length;i<len;i++){
 			if(this.vGrid[1][i].state() != "off"){
 				reached = "l";
 				break;
@@ -250,7 +250,6 @@ $.Invaders.prototype = {
 				default:
 					newDir = "b";
 			}
-			console.log(newDir);
 			this.dir = newDir;
 		}
 	},
@@ -364,7 +363,6 @@ $.Invaders.Invader.prototype = {
 			break;
 			
 		}
-		console.log("nextMove", this.pos,dir)
 		this.setCells();
 	},
 	setCells: function(){
@@ -378,6 +376,14 @@ $.Invaders.Invader.prototype = {
 				vC.push(vR);
 			}
 			this.grid.push(vC);
+		}
+	},
+	clear: function(){
+		var i,j;
+		for(i=0;i<this.kindData.size[0];i++){
+			for(j=0;j<this.kindData.size[1];j++){
+				this.grid[i][j].state("off");
+			}
 		}
 	},
 	redraw: function(data){
@@ -395,22 +401,22 @@ $.Invaders.Invader.prototype = {
 };
 $.Invaders.kinds = {
 	"c1": {
-		size:[13,8],
+		size:[11,8],
 		life:1,
-		initial:[[3,0],[9,0],[4,1],[8,1],[3,2],[4,2],[5,2],[6,2],[7,2],[8,2],[9,2],[2,3],[3,3],[5,3],[6,3],[7,3],[9,3],[10,3],[1,4],[2,4],[3,4],[4,4],[5,4],[6,4],[7,4],[8,4],[9,4],[10,4],[11,4],[1,5],[3,5],[4,5],[5,5],[6,5],[7,5],[8,5],[9,5],[11,5],[1,6],[3,6],[9,6],[11,6],[4,7],[5,7],[7,7],[8,7]],
-		variation:[[1,1],[11,1],[1,2],[11,2],[1,3],[11,3],[1,5],[2,5],[10,5],[11,5],[1,6],[11,6],[2,7],[4,7],[5,7],[7,7],[8,7],[10,7]]
+		initial:[[2,0],[8,0],[3,1],[7,1],[2,2],[3,2],[4,2],[5,2],[6,2],[7,2],[8,2],[1,3],[2,3],[4,3],[5,3],[6,3],[8,3],[9,3],[0,4],[1,4],[2,4],[3,4],[4,4],[5,4],[6,4],[7,4],[8,4],[9,4],[10,4],[0,5],[2,5],[3,5],[4,5],[5,5],[6,5],[7,5],[8,5],[10,5],[0,6],[2,6],[8,6],[10,6],[3,7],[4,7],[6,7],[7,7]],
+		variation:[[0,1],[10,1],[0,2],[10,2],[0,3],[10,3],[0,5],[1,5],[9,5],[10,5],[0,6],[10,6],[1,7],[3,7],[4,7],[6,7],[7,7],[9,7]]
 	}
 };
 $.Invaders.levels = {
 	0: {
 		speed: 300,
 		enemies: [
-			{kind:"c1",pos:[0,0]}/*,
-			{kind:"c1",pos:[12,0]},
-			{kind:"c1",pos:[24,0]},
-			{kind:"c1",pos:[0,9]},
-			{kind:"c1",pos:[12,9]},
-			{kind:"c1",pos:[24,9]}*/
+			{kind:"c1",pos:[25,11]},
+			{kind:"c1",pos:[13,11]},
+			{kind:"c1",pos:[1,11]},
+			{kind:"c1",pos:[25,0]},
+			{kind:"c1",pos:[13,0]},
+			{kind:"c1",pos:[1,0]}
 		]
 	}
 };
