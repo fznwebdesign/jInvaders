@@ -27,10 +27,11 @@ $.Invaders = function(el,values){
 };
 $.Invaders.prototype = {
 	vGrid:[],
-	grid: [50,30],
+	grid: [50,35],
 	$grid:null,
 	cannon:null,
 	invaders:[],
+	lasers:[],
 	level: null,
 	limit:0,
 	keys:[],
@@ -193,6 +194,7 @@ $.Invaders.prototype = {
 			css += "#GRID .cell{height:3px;width:3px;background-color:#FFF;}";
 			css += "#GRID .cell.inv{background-color:#000;}";
 			css += "#GRID .cell.user{background-color:#0A2;}";
+			css += "#GRID .cell.lsr{background-color:#A20;}";
 			css += "#GRID .col {float:left;}";
 			css += "#GRID input.GRIDControl{opacity:0;filter:alpha(opacity=0);position:absolute;top:0;left:0;cursor:pointer !important}";
 			$el = $("<style>");
@@ -201,10 +203,11 @@ $.Invaders.prototype = {
 		}
 	},
 	go:function(){
-		var i,len,inv,next;
+		var i,len,inv,next,lsr;
 		if(!this.vals.start){
 			return false;
 		}
+		// Move Invaders
 		next = this.levelNextStep();
 		if(next){
 			if(next[0]){
@@ -212,16 +215,16 @@ $.Invaders.prototype = {
 			}
 			for(i=0,len=this.invaders.length;i<len;i++){
 				inv = this.invaders[i];
-				if(typeof inv != "undefined"){
+				if(!inv.dead){
 					if(inv.life>0){
 						inv.go(next);
 					}else{
 						inv.die();
-						this.invaders.splice(i,1);
 					}
 				}
 			}
 		}
+		// Move User
 		if(this.keys.length>0){
 			if(this.keys[37]){
 				this.cannon.move("l");
@@ -231,6 +234,15 @@ $.Invaders.prototype = {
 			if(this.keys[32]){
 				this.cannon.shoot();
 				delete this.keys[32];
+			}
+		}
+		// Move Lasers
+		for(i=0,len=this.lasers.length;i<len;i++){
+			lsr = this.lasers[i];
+			if(lsr && !lsr.off){
+				lsr.move();
+			}else{
+				//lsr = false;
 			}
 		}
 		this.begin();
@@ -260,9 +272,10 @@ $.Invaders.prototype = {
 		var reached = false,
 			last = this.vGrid.length-2,
 			i,len;
+		console.log("check dir start",this.dir)
 		if(this.dir == "l" || this.dir == "b"){
 			for(i=0,len=this.vGrid[0].length;i<len;i++){
-				if(this.vGrid[1][i].state() != "off"){
+				if(this.vGrid[1][i].state().indexOf("inv")>=0){
 					reached = "r";
 					break;
 				}
@@ -270,7 +283,7 @@ $.Invaders.prototype = {
 		}
 		if(this.dir == "r" || this.dir == "b"){
 			for(i=0,len=this.vGrid[last].length;i<len;i++){
-				if(this.vGrid[last][i].state() != "off"){
+				if(this.vGrid[last][i].state().indexOf("inv")>=0){
 					reached = "l";
 					break;
 				}
@@ -279,7 +292,7 @@ $.Invaders.prototype = {
 		if(reached){
 			if(this.dir != "b"){
 				for(i=0,len=this.vGrid[last].length;i<len;i++){
-					if(this.vGrid[i][this.limit].state() != "off"){
+					if(this.vGrid[i][this.limit].state().indexOf("inv")>=0){
 						this.gameOver();
 						break;
 					}
@@ -289,6 +302,7 @@ $.Invaders.prototype = {
 				this.dir = reached;
 			}
 		}
+		console.log("check dir end",this.dir,reached)
 	},
 	begin: function(){
 		var self = this;
@@ -345,13 +359,14 @@ $.Invaders.Cell.prototype = {
 $.Invaders.Invader = function(inv,game,id){
 	this.id = id;
 	this.life = 1;
-	this.step = 0;
+	this.dead = false;
 	this.pos = inv.pos;
 	this.kind = inv.kind;
 	this.kindData = [];
 	this.cells = [];
 	this.grid = [];
 	this.game = game;
+	this.hit = false;
 	this.level = game.level;
 	this.init();
 };
@@ -375,7 +390,12 @@ $.Invaders.Invader.prototype = {
 		}
 	},
 	anim: function(){
-		this.redraw(this.kindData.variation);
+		if(this.hit){
+			this.hit = false;
+			this.redraw(this.kindData.initial);
+		}else{
+			this.redraw(this.kindData.variation);
+		}
 	},
 	move: function(){
 		this.clear();
@@ -384,12 +404,14 @@ $.Invaders.Invader.prototype = {
 	},
 	hurt: function(){
 		this.life--;
+		this.hit = true;
 		this.clear();
 		if(this.life<1){
 			this.redraw(this.kindData.death);
 		}
 	},
 	die: function(){
+		this.dead = true;
 		this.clear();
 	},
 	nextMove: function(dir){
@@ -444,17 +466,111 @@ $.Invaders.Invader.prototype = {
 		}
 	}
 };
-$.Invaders.Lasser = function(){
-	
+$.Invaders.Lasser = function(pos,dir,game){
+	this.pos = pos;
+	this.game = game;
+	this.dir = dir;
+	this.step = 2;
+	this.off = false;
+	this.init();
 };
 $.Invaders.Lasser.prototype = {
-	
+	init: function(){
+		this.kindData = $.Invaders.kinds.laser;
+		this.setCells();
+		this.redraw(this.kindData.initial);
+	},
+	move: function(dir){
+		dir = dir || this.dir;
+		this.clear();
+		this.nextMove(dir);
+		if(!this.off){
+			this.redraw(this.kindData.initial);
+		}
+	},
+	nextMove: function(dir){
+		switch(dir){
+			case "t":
+				if(this.pos[1]>2){
+					this.pos[1] = this.pos[1]-this.step;
+				}else{
+					this.off = true;
+				}
+			break;
+			case "d":
+				if(this.pos[1]<(this.game.grid[1]-(this.kindData.size[1]+2))){
+					this.pos[1] = this.pos[1]+this.step;
+				}else{
+					this.off = true;
+				}
+			break;
+			
+		}
+		this.setCells();
+	},
+	setCells: function(){
+		var i,j,vC,vR;
+		this.grid=[];
+		for(i=0;i<this.kindData.size[0];i++){
+			vC = [];
+			for(j=0;j<this.kindData.size[1];j++){
+				vR = this.game.vGrid[i+this.pos[0]][j+this.pos[1]];
+				if(vR.state()!="off"){
+					this.colition(vR.state());
+				}
+				vR.state("off");
+				vC.push(vR);
+			}
+			this.grid.push(vC);
+		}
+	},
+	colition: function(cS){
+		var cSar,i,len,
+			crash = {
+				inv: false,
+				usr: false,
+				lsr: false,
+				type:false,
+				id:"",
+			};
+		cSar = cS.split(" ");
+		if(cS.indexOf("inv")>=0){
+			crash.inv = true;
+			crash.id = parseInt(cSar[1].replace("id",""));
+			crash.type = cSar[2];
+			this.game.invaders[crash.id].hurt();
+		}else if(cS.indexOf("user")>=0){
+			console.log("user")
+		}else if(cS.indexOf("lsr")>=0){
+			console.log("lsr")
+		}
+		this.off = true;
+	},
+	clear: function(){
+		var i,j;
+		for(i=0;i<this.kindData.size[0];i++){
+			for(j=0;j<this.kindData.size[1];j++){
+				this.grid[i][j].state("off");
+			}
+		}
+	},
+	redraw: function(data){
+		var i,len,coord,cell;
+		for(i=0,len=data.length;i<len;i++){
+			coord = data[i];
+			cell = this.grid[coord[0]][coord[1]];
+			if(cell.state() == "off"){
+				cell.state("lsr");
+			}else{
+				cell.state("off");
+			}
+		}
+	}
 };
 $.Invaders.Cannon = function(game){
-	this.life = 2;
+	this.life = 1;
 	this.kindData = $.Invaders.kinds["cannon"];
 	this.cells = [];
-	this.grid = [];
 	this.pos = [0,0];
 	this.game = game;
 	this.init();
@@ -464,6 +580,7 @@ $.Invaders.Cannon.prototype = {
 		this.pos[0] = Math.floor(this.game.grid[0]/2);
 		this.pos[1] = this.game.grid[1]-(this.kindData.size[1]);
 		this.game.limit = this.pos[1]-3;
+		this.life = this.kindData.life;
 		if($.isEmptyObject(this.kindData)){
 			return false;
 		}
@@ -476,7 +593,11 @@ $.Invaders.Cannon.prototype = {
 		this.redraw(this.kindData.initial);
 	},
 	shoot: function(){
-		console.log("bang")
+		var nX,nY,lsr;
+		nX = this.pos[0]+this.kindData.gun[0];
+		nY = this.pos[1]-2;
+		lsr = new $.Invaders.Lasser([nX,nY],"t",this.game);
+		this.game.lasers.push(lsr);
 	},
 	hurt: function(){
 		this.life--;
@@ -540,25 +661,32 @@ $.Invaders.kinds = {
 	"c1": {
 		size:[11,8],
 		life:2,
+		gun:[5,0],
 		initial:[[2,0],[8,0],[3,1],[7,1],[2,2],[3,2],[4,2],[5,2],[6,2],[7,2],[8,2],[1,3],[2,3],[4,3],[5,3],[6,3],[8,3],[9,3],[0,4],[1,4],[2,4],[3,4],[4,4],[5,4],[6,4],[7,4],[8,4],[9,4],[10,4],[0,5],[2,5],[3,5],[4,5],[5,5],[6,5],[7,5],[8,5],[10,5],[0,6],[2,6],[8,6],[10,6],[3,7],[4,7],[6,7],[7,7]],
 		variation:[[0,1],[10,1],[0,2],[10,2],[0,3],[10,3],[0,5],[1,5],[9,5],[10,5],[0,6],[10,6],[1,7],[3,7],[4,7],[6,7],[7,7],[9,7]],
 		death:[[0,0],[3,0],[7,0],[10,0],[1,1],[4,1],[6,1],[9,1],[2,2],[8,2],[0,3],[10,3],[2,4],[8,4],[1,5],[4,5],[6,5],[9,5],[0,6],[3,6],[7,6],[10,6]]
 	},
 	"cannon": {
 		size:[11,7],
-		initial:[[5,0],[4,1],[5,1],[6,1],[4,2],[5,2],[6,2],[1,3],[2,3],[3,3],[4,3],[5,3],[6,3],[7,3],[8,3],[9,3],[0,4],[1,4],[2,4],[3,4],[4,4],[5,4],[6,4],[7,4],[8,4],[9,4],[10,4],[0,5],[1,5],[2,5],[3,5],[4,5],[5,5],[6,5],[7,5],[8,5],[9,5],[10,5],[0,6],[1,6],[2,6],[3,6],[4,6],[5,6],[6,6],[7,6],[8,6],[9,6],[10,6]],
+		life:2,
 		gun:[5,0],
-		death:[[0,0],[3,0],[7,0],[10,0],[1,1],[4,1],[6,1],[9,1],[2,2],[8,2],[0,3],[10,3],[2,4],[8,4],[1,5],[4,5],[6,5],[9,5],[0,6],[3,6],[7,6],[10,6]]
+		initial:[[5,0],[4,1],[5,1],[6,1],[4,2],[5,2],[6,2],[1,3],[2,3],[3,3],[4,3],[5,3],[6,3],[7,3],[8,3],[9,3],[0,4],[1,4],[2,4],[3,4],[4,4],[5,4],[6,4],[7,4],[8,4],[9,4],[10,4],[0,5],[1,5],[2,5],[3,5],[4,5],[5,5],[6,5],[7,5],[8,5],[9,5],[10,5],[0,6],[1,6],[2,6],[3,6],[4,6],[5,6],[6,6],[7,6],[8,6],[9,6],[10,6]],
+		death:[[4,0],[9,1],[4,2],[6,2],[8,2],[1,3],[4,3],[3,4],[5,4],[6,4],[8,4],[9,4],[1,5],[2,5],[3,5],[4,5],[5,5],[6,5],[7,5],[8,5],[0,6],[1,6],[2,6],[3,6],[4,6],[5,6],[6,6],[7,6],[8,6],[9,6]]
+	},
+	"laser": {
+		size:[1,2],
+		initial:[[0,0],[0,1]],
+		death:[]
 	}
 };
 $.Invaders.levels = {
 	0: {
 		speed: 50,
 		animation: {
-			sDelay:9,
-			sCount:9,
-			mDelay:19,
-			mCount:19
+			sDelay:4,
+			sCount:4,
+			mDelay:9,
+			mCount:9
 		},
 		enemies: [
 			{kind:"c1",pos:[25,11]},
