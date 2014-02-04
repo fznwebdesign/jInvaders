@@ -27,7 +27,7 @@ $.Invaders = function(el,values){
 };
 $.Invaders.prototype = {
 	vGrid:[],
-	grid: [50,35],
+	grid: [100,100],
 	$grid:null,
 	cannon:null,
 	invaders:[],
@@ -39,8 +39,8 @@ $.Invaders.prototype = {
 	init:function(){
 		this.genCSS();
 		this.renderGrid();
-		this.cannon = new $.Invaders.Cannon(this);
 		this.loadLevel();
+		this.cannon = new $.Invaders.Cannon(this);
 		this.attachEvents();
 		if(this.vals.start){
 			this.begin();
@@ -203,7 +203,8 @@ $.Invaders.prototype = {
 		}
 	},
 	go:function(){
-		var i,len,inv,next,lsr;
+		var i,len,inv,next,lsr,
+			count=0;
 		if(!this.vals.start){
 			return false;
 		}
@@ -217,11 +218,15 @@ $.Invaders.prototype = {
 				inv = this.invaders[i];
 				if(!inv.dead){
 					if(inv.life>0){
+						count++;
 						inv.go(next);
 					}else{
 						inv.die();
 					}
 				}
+			}
+			if(count<1){
+				this.gameWin();
 			}
 		}
 		// Move User
@@ -251,6 +256,10 @@ $.Invaders.prototype = {
 		console.log("game over");
 		this.vals.start = false;
 	},
+	gameWin: function(){
+		console.log("game win!");
+		this.vals.start = false;
+	},
 	levelNextStep: function(){
 		var anim = false,
 			move = false;
@@ -272,7 +281,6 @@ $.Invaders.prototype = {
 		var reached = false,
 			last = this.vGrid.length-2,
 			i,len;
-		console.log("check dir start",this.dir)
 		if(this.dir == "l" || this.dir == "b"){
 			for(i=0,len=this.vGrid[0].length;i<len;i++){
 				if(this.vGrid[1][i].state().indexOf("inv")>=0){
@@ -302,7 +310,6 @@ $.Invaders.prototype = {
 				this.dir = reached;
 			}
 		}
-		console.log("check dir end",this.dir,reached)
 	},
 	begin: function(){
 		var self = this;
@@ -420,7 +427,7 @@ $.Invaders.Invader.prototype = {
 				this.pos[1]--;
 			break;
 			case "b":
-				this.pos[1] = this.pos[1]+2;
+				this.pos[1] = this.pos[1]+this.game.level.step;
 			break;
 			case "l":
 				this.pos[0]--;
@@ -579,7 +586,7 @@ $.Invaders.Cannon.prototype = {
 	init: function(){
 		this.pos[0] = Math.floor(this.game.grid[0]/2);
 		this.pos[1] = this.game.grid[1]-(this.kindData.size[1]);
-		this.game.limit = this.pos[1]-3;
+		this.game.limit = this.pos[1]-this.game.level.step;
 		this.life = this.kindData.life;
 		if($.isEmptyObject(this.kindData)){
 			return false;
@@ -682,16 +689,25 @@ $.Invaders.kinds = {
 $.Invaders.levels = {
 	0: {
 		speed: 50,
+		step:5,
 		animation: {
-			sDelay:4,
-			sCount:4,
-			mDelay:9,
-			mCount:9
+			sDelay:2,
+			sCount:2,
+			mDelay:5,
+			mCount:5
 		},
 		enemies: [
+			{kind:"c1",pos:[73,11]},
+			{kind:"c1",pos:[61,11]},
+			{kind:"c1",pos:[49,11]},
+			{kind:"c1",pos:[37,11]},
 			{kind:"c1",pos:[25,11]},
 			{kind:"c1",pos:[13,11]},
 			{kind:"c1",pos:[1,11]},
+			{kind:"c1",pos:[73,0]},
+			{kind:"c1",pos:[61,0]},
+			{kind:"c1",pos:[49,0]},
+			{kind:"c1",pos:[37,0]},
 			{kind:"c1",pos:[25,0]},
 			{kind:"c1",pos:[13,0]},
 			{kind:"c1",pos:[1,0]}
