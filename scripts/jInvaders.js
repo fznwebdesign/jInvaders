@@ -1,5 +1,5 @@
 /**
- * Pedro Carrazco | jInvaders 1.0
+ * Pedro Carrazco | jInvaders 0.1
  * 
  * This project is just a hobbie, created by Pedro Carrazco,
  * reproduction is totally allowed as this code is just for fun.
@@ -16,7 +16,7 @@ $.Invaders = function(el,values){
 	/* Defaults */
 	var defaults = {
 		start: true,    // Start after load / Iniciar despues de cargar
-		level: 0,     // Speed in miliseconds / Velocidad en milisegundos
+		level: 1,     // Speed in miliseconds / Velocidad en milisegundos
 		$el: el,        // The jQuery container / El contenedor como objeto jQuery
 		t: null
 	};
@@ -193,8 +193,8 @@ $.Invaders.prototype = {
 			css += "#GRID{background-color:#F9F9F9;border:1px solid #CCC;padding:0 1px 1px 0;position:relative;overflow:visible;}";
 			css += "#GRID .cell{height:3px;width:3px;background-color:#FFF;}";
 			css += "#GRID .cell.inv{background-color:#000;}";
-			css += "#GRID .cell.user{background-color:#0A2;}";
-			css += "#GRID .cell.lsr{background-color:#A20;}";
+			css += "#GRID .cell.cannon{background-color:#0A2;}";
+			css += "#GRID .cell.laser{background-color:#A20;}";
 			css += "#GRID .col {float:left;}";
 			css += "#GRID input.GRIDControl{opacity:0;filter:alpha(opacity=0);position:absolute;top:0;left:0;cursor:pointer !important}";
 			$el = $("<style>");
@@ -202,7 +202,7 @@ $.Invaders.prototype = {
 			$("body").append($el);
 		}
 	},
-	go:function(){
+	go: function(){
 		var i,len,inv,next,lsr,
 			count=0;
 		if(!this.vals.start){
@@ -232,9 +232,9 @@ $.Invaders.prototype = {
 		// Move User
 		if(this.keys.length>0){
 			if(this.keys[37]){
-				this.cannon.move("l");
+				this.cannon.go("l");
 			}else if(this.keys[39]){
-				this.cannon.move("r");
+				this.cannon.go("r");
 			}
 			if(this.keys[32]){
 				this.cannon.shoot();
@@ -245,7 +245,7 @@ $.Invaders.prototype = {
 		for(i=0,len=this.lasers.length;i<len;i++){
 			lsr = this.lasers[i];
 			if(lsr && !lsr.off){
-				lsr.move();
+				lsr.go();
 			}else{
 				//lsr = false;
 			}
@@ -253,11 +253,11 @@ $.Invaders.prototype = {
 		this.begin();
 	},
 	gameOver: function(){
-		console.log("game over");
+		alert("Game Over");
 		this.vals.start = false;
 	},
 	gameWin: function(){
-		console.log("game win!");
+		alert("You Win!");
 		this.vals.start = false;
 	},
 	levelNextStep: function(){
@@ -330,8 +330,7 @@ $.Invaders.prototype = {
 			});
 		}
 	}
-}
-// Game Items Objects
+};
 $.Invaders.Cell = function(id,$el){
         this.id = id;
         this.$el = $el;
@@ -363,35 +362,28 @@ $.Invaders.Cell.prototype = {
                 return coords;
         }
 };
+// Game Items
 $.Invaders.Invader = function(inv,game,id){
 	this.id = id;
 	this.life = 1;
 	this.dead = false;
-	this.pos = inv.pos;
 	this.kind = inv.kind;
-	this.kindData = [];
-	this.cells = [];
-	this.grid = [];
 	this.game = game;
 	this.hit = false;
 	this.level = game.level;
+	this.actions = new $.Invaders.Actions(this,inv.pos,this.game.level.step);
 	this.init();
 };
 $.Invaders.Invader.prototype = {
 	init: function(){
-		var kind = $.Invaders.kinds[this.kind];
-		if(!$.isEmptyObject(kind)){
-			this.kindData = kind;
-		}else{
-			return false;
-		}
-		this.life = this.kindData.life;
-		this.setCells();
-		this.redraw(this.kindData.initial);
+		this.life = this.actions.kindData.life;
+		this.actions.setCells();
+		this.actions.redraw();
 	},
 	go: function(next){
 		if(next[0]){
-			this.move();
+			this.actions.dir = this.game.dir;
+			this.actions.move();
 		}else if(next[1]){
 			this.anim();
 		}
@@ -399,235 +391,172 @@ $.Invaders.Invader.prototype = {
 	anim: function(){
 		if(this.hit){
 			this.hit = false;
-			this.redraw(this.kindData.initial);
+			this.actions.redraw();
 		}else{
-			this.redraw(this.kindData.variation);
+			this.actions.redraw("variation");
+		}
+		if(this.actions.kindData.chance > Math.random()){
+			this.shoot();
 		}
 	},
-	move: function(){
-		this.clear();
-		this.nextMove(this.game.dir)
-		this.redraw(this.kindData.initial);
+	shoot: function(){
+		var lsr,
+			pos = this.actions.getCenter();
+		lsr = new $.Invaders.Lasser(pos,"b",this.game,"inv");
+		this.game.lasers.push(lsr);
 	},
 	hurt: function(){
-		this.life--;
-		this.hit = true;
-		this.clear();
-		if(this.life<1){
-			this.redraw(this.kindData.death);
+		if(!this.hit){
+			this.life--;
+			this.hit = true;
+			this.actions.clear();
+			if(this.life<1){
+				this.actions.redraw("death");
+			}
 		}
 	},
 	die: function(){
 		this.dead = true;
-		this.clear();
-	},
-	nextMove: function(dir){
-		switch(dir){
-			case "t":
-				this.pos[1]--;
-			break;
-			case "b":
-				this.pos[1] = this.pos[1]+this.game.level.step;
-			break;
-			case "l":
-				this.pos[0]--;
-			break;
-			case "r":
-				this.pos[0]++;
-			break;
-			
-		}
-		this.setCells();
-	},
-	setCells: function(){
-		var i,j,vC,vR;
-		this.grid=[];
-		for(i=0;i<this.kindData.size[0];i++){
-			vC = [];
-			for(j=0;j<this.kindData.size[1];j++){
-				vR = this.game.vGrid[i+this.pos[0]][j+this.pos[1]];
-				vR.state("off");
-				vC.push(vR);
-			}
-			this.grid.push(vC);
-		}
-	},
-	clear: function(){
-		var i,j;
-		for(i=0;i<this.kindData.size[0];i++){
-			for(j=0;j<this.kindData.size[1];j++){
-				this.grid[i][j].state("off");
-			}
-		}
-	},
-	redraw: function(data){
-		var i,len,coord,cell;
-		for(i=0,len=data.length;i<len;i++){
-			coord = data[i];
-			cell = this.grid[coord[0]][coord[1]];
-			if(cell.state() == "off"){
-				cell.state("inv id"+this.id+" "+this.kind);
-			}else{
-				cell.state("off");
-			}
-		}
+		this.actions.clear();
 	}
 };
-$.Invaders.Lasser = function(pos,dir,game){
-	this.pos = pos;
+$.Invaders.Lasser = function(pos,dir,game,source){
 	this.game = game;
-	this.dir = dir;
-	this.step = 2;
 	this.off = false;
+	this.kind = "laser";
+	this.avoid = source;
+	this.actions = new $.Invaders.Actions(this,pos,2);
+	this.actions.dir = dir;
 	this.init();
 };
 $.Invaders.Lasser.prototype = {
 	init: function(){
-		this.kindData = $.Invaders.kinds.laser;
-		this.setCells();
-		this.redraw(this.kindData.initial);
+		this.actions.setCells();
+		this.actions.redraw();
 	},
-	move: function(dir){
-		dir = dir || this.dir;
-		this.clear();
-		this.nextMove(dir);
-		if(!this.off){
-			this.redraw(this.kindData.initial);
-		}
-	},
-	nextMove: function(dir){
-		switch(dir){
-			case "t":
-				if(this.pos[1]>2){
-					this.pos[1] = this.pos[1]-this.step;
-				}else{
-					this.off = true;
-				}
-			break;
-			case "d":
-				if(this.pos[1]<(this.game.grid[1]-(this.kindData.size[1]+2))){
-					this.pos[1] = this.pos[1]+this.step;
-				}else{
-					this.off = true;
-				}
-			break;
-			
-		}
-		this.setCells();
-	},
-	setCells: function(){
-		var i,j,vC,vR;
-		this.grid=[];
-		for(i=0;i<this.kindData.size[0];i++){
-			vC = [];
-			for(j=0;j<this.kindData.size[1];j++){
-				vR = this.game.vGrid[i+this.pos[0]][j+this.pos[1]];
-				if(vR.state()!="off"){
-					this.colition(vR.state());
-				}
-				vR.state("off");
-				vC.push(vR);
-			}
-			this.grid.push(vC);
-		}
+	go: function(){
+		this.actions.move();
 	},
 	colition: function(cS){
 		var cSar,i,len,
-			crash = {
-				inv: false,
-				usr: false,
-				lsr: false,
-				type:false,
-				id:"",
-			};
+			crash = false;
 		cSar = cS.split(" ");
-		if(cS.indexOf("inv")>=0){
-			crash.inv = true;
-			crash.id = parseInt(cSar[1].replace("id",""));
-			crash.type = cSar[2];
-			this.game.invaders[crash.id].hurt();
-		}else if(cS.indexOf("user")>=0){
-			console.log("user")
-		}else if(cS.indexOf("lsr")>=0){
-			console.log("lsr")
+		if(cS.indexOf("inv")>=0 && this.avoid != "inv"){
+			crash = parseInt(cSar[1].replace("id",""));
+			this.game.invaders[crash].hurt();
+		}else if(cS.indexOf("cannon")>=0){
+			this.game.cannon.hurt();
+		}else if(cS.indexOf("laser")>=0){
+			console.log("laser")
+			crash = true;
 		}
-		this.off = true;
-	},
-	clear: function(){
-		var i,j;
-		for(i=0;i<this.kindData.size[0];i++){
-			for(j=0;j<this.kindData.size[1];j++){
-				this.grid[i][j].state("off");
-			}
-		}
-	},
-	redraw: function(data){
-		var i,len,coord,cell;
-		for(i=0,len=data.length;i<len;i++){
-			coord = data[i];
-			cell = this.grid[coord[0]][coord[1]];
-			if(cell.state() == "off"){
-				cell.state("lsr");
-			}else{
-				cell.state("off");
-			}
+		if(crash){
+			this.off = true;
 		}
 	}
 };
 $.Invaders.Cannon = function(game){
-	this.life = 1;
-	this.kindData = $.Invaders.kinds["cannon"];
-	this.cells = [];
-	this.pos = [0,0];
+	this.life = 0;
+	this.kind = "cannon";
+	this.hit = false;
 	this.game = game;
+	this.actions = new $.Invaders.Actions(this);
 	this.init();
 };
 $.Invaders.Cannon.prototype = {
 	init: function(){
-		this.pos[0] = Math.floor(this.game.grid[0]/2);
-		this.pos[1] = this.game.grid[1]-(this.kindData.size[1]);
-		this.game.limit = this.pos[1]-this.game.level.step;
-		this.life = this.kindData.life;
-		if($.isEmptyObject(this.kindData)){
-			return false;
-		}
-		this.setCells();
-		this.redraw(this.kindData.initial);
+		this.game.limit = this.actions.pos[1]-this.game.level.step;
+		this.life = this.actions.kindData.life;
+		this.actions.setCells();
+		this.actions.redraw();
 	},
-	move: function(dir){
-		this.clear();
-		this.nextMove(dir)
-		this.redraw(this.kindData.initial);
+	go: function(dir){
+		this.actions.dir = dir;
+		this.actions.move();
+		this.hit = false;
 	},
 	shoot: function(){
-		var nX,nY,lsr;
-		nX = this.pos[0]+this.kindData.gun[0];
-		nY = this.pos[1]-2;
-		lsr = new $.Invaders.Lasser([nX,nY],"t",this.game);
+		var lsr,
+			pos = this.actions.getCenter();
+		this.hit = false;
+		lsr = new $.Invaders.Lasser(pos,"t",this.game,"cannon");
 		this.game.lasers.push(lsr);
 	},
 	hurt: function(){
-		this.life--;
-		this.clear();
-		this.redraw(this.kindData.death);
-		if(this.life<1){
-			this.game.gameOver();
+		if(!this.hit){
+			this.hit = true;
+			this.life--;
+			this.actions.clear();
+			this.actions.redraw("death");
+			if(this.life<1){
+				this.game.gameOver();
+			}
 		}
 	},
 	die: function(){
+		this.actions.clear();
+	}
+};
+$.Invaders.Actions = function(caller,pos,step){
+	this.alive = true;
+	this.caller = caller;
+	this.kind = this.caller.kind;
+	this.game = this.caller.game;
+	this.step = step || 1;
+	this.grid = [];
+	this.dir = "r";
+	this.st = (this.kind != "cannon" && this.kind != "laser") ? "inv id" + this.caller.id + " " + this.kind : this.kind ;
+	this.init(this.kind,pos)
+};
+$.Invaders.Actions.prototype = {
+	init: function(name,pos){
+		var kind = $.Invaders.kinds[name];
+		if(!$.isEmptyObject(kind)){
+			this.kindData = kind;
+		}else{
+			return false;
+		}
+		this.pos = pos || [Math.floor(this.game.grid[0]/2),Math.floor(this.game.grid[1]-this.kindData.size[1])];
+	},
+	move: function(){
 		this.clear();
+		this.nextMove(this.dir);
+		this.setCells();
+		this.redraw("initial");
 	},
 	nextMove: function(dir){
+		var limits = false,
+			pos = this.pos;
 		switch(dir){
 			case "l":
-				this.pos[0] = (this.pos[0]>2) ? this.pos[0]-1 : this.pos[0];
+				pos[0] = (pos[0]>0) ? pos[0]-1 : pos[0];
 			break;
 			case "r":
-				this.pos[0] = (this.pos[0]<(this.game.grid[0]-(this.kindData.size[0]+2))) ? this.pos[0]+1 : this.pos[0];
+				pos[0] = (pos[0]<(this.game.grid[0]-this.kindData.size[0])) ? pos[0]+1 : pos[0];
 			break;
-			
+			case "t":
+				if(pos[1]>1){
+					pos[1] = pos[1]-this.step;
+				}else{
+					limits = true;
+				}
+			break;
+			case "b":
+				if(pos[1]<(this.game.grid[1]-(this.kindData.size[1]+1))){
+					pos[1] = pos[1]+this.step;
+				}else{
+					limits = true;
+				}
+			break;
 		}
-		this.setCells();
+		this.pos = pos;
+		this.caller.off = limits;
+	},
+	getCenter: function(){
+		var nX,nY,lsr;
+		nX = this.pos[0] + Math.floor(this.kindData.size[0] / 2);
+		nY = (this.kind == "cannon") ? this.pos[1]-2 : this.pos[1] + this.kindData.size[1] ;
+		return [nX,nY];
 	},
 	setCells: function(){
 		var i,j,vC,vR;
@@ -636,6 +565,9 @@ $.Invaders.Cannon.prototype = {
 			vC = [];
 			for(j=0;j<this.kindData.size[1];j++){
 				vR = this.game.vGrid[i+this.pos[0]][j+this.pos[1]];
+				if(this.kind == "laser" && vR.state() != "off"){
+					this.caller.colition(vR.state());
+				}
 				vR.state("off");
 				vC.push(vR);
 			}
@@ -650,34 +582,54 @@ $.Invaders.Cannon.prototype = {
 			}
 		}
 	},
-	redraw: function(data){
-		var i,len,coord,cell;
+	redraw: function(pattern){
+		var i,len,coord,cell,
+			pattern = pattern || "initial",
+			data = this.kindData[pattern];
+		if(this.caller.off || typeof data == "undefined"){
+			return false;
+		}
 		for(i=0,len=data.length;i<len;i++){
 			coord = data[i];
 			cell = this.grid[coord[0]][coord[1]];
 			if(cell.state() == "off"){
-				cell.state("user");
+				cell.state(this.st);
 			}else{
 				cell.state("off");
 			}
 		}
 	}
 };
-//Game Data
 $.Invaders.kinds = {
 	"c1": {
 		size:[11,8],
 		life:2,
-		gun:[5,0],
+		chance:0.01,
 		initial:[[2,0],[8,0],[3,1],[7,1],[2,2],[3,2],[4,2],[5,2],[6,2],[7,2],[8,2],[1,3],[2,3],[4,3],[5,3],[6,3],[8,3],[9,3],[0,4],[1,4],[2,4],[3,4],[4,4],[5,4],[6,4],[7,4],[8,4],[9,4],[10,4],[0,5],[2,5],[3,5],[4,5],[5,5],[6,5],[7,5],[8,5],[10,5],[0,6],[2,6],[8,6],[10,6],[3,7],[4,7],[6,7],[7,7]],
 		variation:[[0,1],[10,1],[0,2],[10,2],[0,3],[10,3],[0,5],[1,5],[9,5],[10,5],[0,6],[10,6],[1,7],[3,7],[4,7],[6,7],[7,7],[9,7]],
+		death:[[0,0],[3,0],[7,0],[10,0],[1,1],[4,1],[6,1],[9,1],[2,2],[8,2],[0,3],[10,3],[2,4],[8,4],[1,5],[4,5],[6,5],[9,5],[0,6],[3,6],[7,6],[10,6]]
+	},
+	"c2": {
+		size:[8,8],
+		life:1,
+		chance:0.05,
+		initial:[[3,0],[4,0],[2,1],[3,1],[4,1],[5,1],[1,2],[2,2],[3,2],[4,2],[5,2],[6,2],[0,3],[1,3],[3,3],[4,3],[6,3],[7,3],[0,4],[1,4],[2,4],[3,4],[4,4],[5,4],[6,4],[7,4],[1,5],[3,5],[4,5],[6,5],[0,6],[7,6],[1,7],[6,7]],
+		variation:[[1,5],[2,5],[3,5],[4,5],[5,5],[6,5],[0,6],[1,6],[3,6],[4,6],[6,6],[7,6],[0,7],[1,7],[2,7],[5,7],[6,7],[7,7]],
+		death:[[0,0],[3,0],[4,0],[7,0],[1,1],[6,1],[2,2],[5,2],[0,3],[7,3],[2,4],[5,4],[1,5],[6,5],[0,6],[3,6],[4,6],[7,6]]
+	},
+	"c3": {
+		size:[12,8],
+		life:5,
+		chance:0,
+		initial:[[4,0],[5,0],[6,0],[7,0],[1,1],[2,1],[3,1],[4,1],[5,1],[6,1],[7,1],[8,1],[9,1],[10,1],[0,2],[1,2],[2,2],[3,2],[4,2],[5,2],[6,2],[7,2],[8,2],[9,2],[10,2],[11,2],[0,3],[1,3],[2,3],[5,3],[6,3],[9,3],[10,3],[11,3],[0,4],[1,4],[2,4],[3,4],[4,4],[5,4],[6,4],[7,4],[8,4],[9,4],[10,4],[11,4],[2,5],[3,5],[4,5],[7,5],[8,5],[9,5],[1,6],[2,6],[5,6],[6,6],[9,6],[10,6],[2,7],[3,7],[8,7],[9,7]],
+		variation:[[2,5],[9,5],[1,6],[3,6],[8,6],[10,6],[0,7],[1,7],[2,7],[3,7],[8,7],[9,7],[10,7],[11,7]],
 		death:[[0,0],[3,0],[7,0],[10,0],[1,1],[4,1],[6,1],[9,1],[2,2],[8,2],[0,3],[10,3],[2,4],[8,4],[1,5],[4,5],[6,5],[9,5],[0,6],[3,6],[7,6],[10,6]]
 	},
 	"cannon": {
 		size:[11,7],
 		life:2,
-		gun:[5,0],
 		initial:[[5,0],[4,1],[5,1],[6,1],[4,2],[5,2],[6,2],[1,3],[2,3],[3,3],[4,3],[5,3],[6,3],[7,3],[8,3],[9,3],[0,4],[1,4],[2,4],[3,4],[4,4],[5,4],[6,4],[7,4],[8,4],[9,4],[10,4],[0,5],[1,5],[2,5],[3,5],[4,5],[5,5],[6,5],[7,5],[8,5],[9,5],[10,5],[0,6],[1,6],[2,6],[3,6],[4,6],[5,6],[6,6],[7,6],[8,6],[9,6],[10,6]],
+		variation:[],
 		death:[[4,0],[9,1],[4,2],[6,2],[8,2],[1,3],[4,3],[3,4],[5,4],[6,4],[8,4],[9,4],[1,5],[2,5],[3,5],[4,5],[5,5],[6,5],[7,5],[8,5],[0,6],[1,6],[2,6],[3,6],[4,6],[5,6],[6,6],[7,6],[8,6],[9,6]]
 	},
 	"laser": {
@@ -697,6 +649,96 @@ $.Invaders.levels = {
 			mCount:5
 		},
 		enemies: [
+			{kind:"c1",pos:[73,23]},
+			{kind:"c1",pos:[61,23]},
+			{kind:"c1",pos:[49,23]},
+			{kind:"c1",pos:[37,23]},
+			{kind:"c1",pos:[25,23]},
+			{kind:"c1",pos:[13,23]},
+			{kind:"c1",pos:[1,23]},
+			{kind:"c1",pos:[73,11]},
+			{kind:"c1",pos:[61,11]},
+			{kind:"c1",pos:[49,11]},
+			{kind:"c1",pos:[37,11]},
+			{kind:"c1",pos:[25,11]},
+			{kind:"c1",pos:[13,11]},
+			{kind:"c1",pos:[1,11]},
+			{kind:"c1",pos:[73,0]},
+			{kind:"c1",pos:[61,0]},
+			{kind:"c1",pos:[49,0]},
+			{kind:"c1",pos:[37,0]},
+			{kind:"c1",pos:[25,0]},
+			{kind:"c1",pos:[13,0]},
+			{kind:"c1",pos:[1,0]}
+		]
+	},
+	1: {
+		speed: 50,
+		step:6,
+		animation: {
+			sDelay:2,
+			sCount:2,
+			mDelay:5,
+			mCount:5
+		},
+		enemies: [
+			{kind:"c2",pos:[74,35]},
+			{kind:"c2",pos:[65,35]},
+			{kind:"c2",pos:[56,35]},
+			{kind:"c2",pos:[47,35]},
+			{kind:"c2",pos:[38,35]},
+			{kind:"c2",pos:[29,35]},
+			{kind:"c2",pos:[20,35]},
+			{kind:"c2",pos:[11,35]},
+			{kind:"c2",pos:[2,35]},
+			{kind:"c1",pos:[73,23]},
+			{kind:"c1",pos:[61,23]},
+			{kind:"c1",pos:[49,23]},
+			{kind:"c1",pos:[37,23]},
+			{kind:"c1",pos:[25,23]},
+			{kind:"c1",pos:[13,23]},
+			{kind:"c1",pos:[1,23]},
+			{kind:"c1",pos:[73,11]},
+			{kind:"c1",pos:[61,11]},
+			{kind:"c1",pos:[49,11]},
+			{kind:"c1",pos:[37,11]},
+			{kind:"c1",pos:[25,11]},
+			{kind:"c1",pos:[13,11]},
+			{kind:"c1",pos:[1,11]},
+			{kind:"c1",pos:[73,0]},
+			{kind:"c1",pos:[61,0]},
+			{kind:"c1",pos:[49,0]},
+			{kind:"c1",pos:[37,0]},
+			{kind:"c1",pos:[25,0]},
+			{kind:"c1",pos:[13,0]},
+			{kind:"c1",pos:[1,0]}
+		]
+	},
+	2: {
+		speed: 50,
+		step:7,
+		animation: {
+			sDelay:2,
+			sCount:2,
+			mDelay:5,
+			mCount:5
+		},
+		enemies: [
+			{kind:"c3",pos:[68,35]},
+			{kind:"c3",pos:[55,35]},
+			{kind:"c3",pos:[42,35]},
+			{kind:"c3",pos:[29,35]},
+			{kind:"c3",pos:[16,35]},
+			{kind:"c3",pos:[3,35]},
+			{kind:"c2",pos:[74,23]},
+			{kind:"c2",pos:[65,23]},
+			{kind:"c2",pos:[56,23]},
+			{kind:"c2",pos:[47,23]},
+			{kind:"c2",pos:[38,23]},
+			{kind:"c2",pos:[29,23]},
+			{kind:"c2",pos:[20,23]},
+			{kind:"c2",pos:[11,23]},
+			{kind:"c2",pos:[2,23]},
 			{kind:"c1",pos:[73,11]},
 			{kind:"c1",pos:[61,11]},
 			{kind:"c1",pos:[49,11]},
