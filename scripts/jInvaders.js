@@ -16,7 +16,7 @@ $.Invaders = function(el,values){
 	/* Defaults */
 	var defaults = {
 		start: true,    // Start after load / Iniciar despues de cargar
-		level: 1,     // Speed in miliseconds / Velocidad en milisegundos
+		level: 0,     // Speed in miliseconds / Velocidad en milisegundos
 		$el: el,        // The jQuery container / El contenedor como objeto jQuery
 		t: null
 	};
@@ -27,10 +27,14 @@ $.Invaders = function(el,values){
 };
 $.Invaders.prototype = {
 	vGrid:[],
-	grid: [100,100],
+	grid: [100,130],
+	wait:0,
+	advance:0,
+	round:0,
 	$grid:null,
 	cannon:null,
 	invaders:[],
+	bunkers:[],
 	lasers:[],
 	level: null,
 	limit:0,
@@ -174,14 +178,22 @@ $.Invaders.prototype = {
 		},10)
 	},
 	loadLevel: function(){
-		var i,len,inv;
+		var i,len,inv,bnk;
 		this.invaders = [];
+		this.advance = 0;
 		this.level = (typeof $.Invaders.levels[this.vals.level] != "undefined") ? $.Invaders.levels[this.vals.level] : this.level;
 		this.vals.speed = this.level.speed;
 		
 		for(i=0,len=this.level.enemies.length;i<len;i++){
 			inv = this.level.enemies[i];
 			this.invaders[i] = new $.Invaders.Invader(inv,this,i);
+		}
+		len=this.level.bunkers.length
+		if(len>0){
+			for(i=0;i<len;i++){
+				bnk = this.level.bunkers[i];
+				this.bunkers[i] = new $.Invaders.Bunker(bnk,this);
+			}
 		}
 		
 		this.vals.speed = this.level.speed;
@@ -194,6 +206,7 @@ $.Invaders.prototype = {
 			css += "#GRID .cell{height:3px;width:3px;background-color:#FFF;}";
 			css += "#GRID .cell.inv{background-color:#000;}";
 			css += "#GRID .cell.cannon{background-color:#0A2;}";
+			css += "#GRID .cell.bunker{background-color:#20A;}";
 			css += "#GRID .cell.laser{background-color:#A20;}";
 			css += "#GRID .col {float:left;}";
 			css += "#GRID input.GRIDControl{opacity:0;filter:alpha(opacity=0);position:absolute;top:0;left:0;cursor:pointer !important}";
@@ -208,37 +221,46 @@ $.Invaders.prototype = {
 		if(!this.vals.start){
 			return false;
 		}
-		// Move Invaders
-		next = this.levelNextStep();
-		if(next){
-			if(next[0]){
-				this.checkDir();
-			}
-			for(i=0,len=this.invaders.length;i<len;i++){
-				inv = this.invaders[i];
-				if(!inv.dead){
-					if(inv.life>0){
-						count++;
-						inv.go(next);
-					}else{
-						inv.die();
+		if(this.wait>0){
+			this.wait--;
+		}else{
+			// Move Invaders
+			next = this.levelNextStep();
+			if(next){
+				if(next[0]){
+					this.checkDir();
+				}
+				for(i=0,len=this.invaders.length;i<len;i++){
+					inv = this.invaders[i];
+					if(!inv.dead){
+						if(inv.life>0){
+							count++;
+							inv.go(next);
+						}else{
+							inv.die();
+						}
 					}
 				}
+				if(count<1){
+					this.gameWin();
+				}
 			}
-			if(count<1){
-				this.gameWin();
+			// Move User
+			if(this.cannon.hit){
+				this.cannon.hit = false;
+				this.cannon.actions.clear();
+				this.cannon.actions.redraw();
 			}
-		}
-		// Move User
-		if(this.keys.length>0){
-			if(this.keys[37]){
-				this.cannon.go("l");
-			}else if(this.keys[39]){
-				this.cannon.go("r");
-			}
-			if(this.keys[32]){
-				this.cannon.shoot();
-				delete this.keys[32];
+			if(this.keys.length>0){
+				if(this.keys[37]){
+					this.cannon.go("l");
+				}else if(this.keys[39]){
+					this.cannon.go("r");
+				}
+				if(this.keys[32]){
+					this.cannon.shoot();
+					delete this.keys[32];
+				}
 			}
 		}
 		// Move Lasers
@@ -250,31 +272,46 @@ $.Invaders.prototype = {
 				//lsr = false;
 			}
 		}
+		this.refresh();
 		this.begin();
+	},
+	refresh: function(){
+		var i,j,len,len2,cell;
+		for(i=0,len=this.vGrid.length;i<len;i++){
+			for(j=0,len2=this.vGrid[0].length;j<len2;j++){
+				cell = this.vGrid[i][j];
+				cell.refresh();
+			}
+		}
 	},
 	gameOver: function(){
 		alert("Game Over");
 		this.vals.start = false;
 	},
 	gameWin: function(){
+		var i,len,lsr;
 		alert("You Win!");
-		this.vals.start = false;
+		// Move Lasers
+		for(i=0,len=this.lasers.length;i<len;i++){
+			lsr = this.lasers[i];
+			lsr.actions.clear();
+		}
+		this.lasers = [];
+		this.vals.level++;
+		if(this.vals.level >= $.Invaders.levels.length){
+			this.vals.level = 0;
+			this.round++;
+		}
+		this.wait = 50;
+		this.loadLevel();
 	},
 	levelNextStep: function(){
 		var anim = false,
-			move = false;
-		if(this.level.animation.mCount>0){
-			this.level.animation.mCount--;
-		}else{
-			this.level.animation.mCount = this.level.animation.mDelay;
-			move = true;
-		}
-		if(this.level.animation.sCount>0){
-			this.level.animation.sCount--
-		}else{
-			this.level.animation.sCount = this.level.animation.sDelay;
-			anim = true;
-		}
+			move = false,
+			d = this.level.delay-(Math.floor(this.advance/2));
+		d = (d<1) ? 1 : d;
+		anim = (this.vals.t%d==0) ? true : false;
+		move = (this.vals.t%(d*2)==0) ? true : false;
 		return (move || anim) ? [move,anim] : false
 	},
 	checkDir: function(){
@@ -299,7 +336,8 @@ $.Invaders.prototype = {
 		}
 		if(reached){
 			if(this.dir != "b"){
-				for(i=0,len=this.vGrid[last].length;i<len;i++){
+				this.advance++;
+				for(i=0,len=this.vGrid.length;i<len;i++){
 					if(this.vGrid[i][this.limit].state().indexOf("inv")>=0){
 						this.gameOver();
 						break;
@@ -322,6 +360,14 @@ $.Invaders.prototype = {
 		if(self.cannon){
 			self.vals.$el.find(".GRIDControl").off("keydown").keydown(function(e){
 				self.keys[e.which] = true;
+				/*if(e.which == 37){
+					self.cannon.go("l");
+				}else if(e.which == 39){
+					self.cannon.go("r");
+				}
+				if(e.which == 32){
+					self.cannon.shoot();
+				}*/
 			});
 			self.vals.$el.find(".GRIDControl").off("keyup").keyup(function(e){
 				if(e.which!=32){
@@ -331,39 +377,40 @@ $.Invaders.prototype = {
 		}
 	}
 };
+// Game Items Objects
 $.Invaders.Cell = function(id,$el){
         this.id = id;
         this.$el = $el;
         this.st = "off";
+        this._state = "off";
+		this.ch = false;
 };
 $.Invaders.Cell.prototype = {
-        state: function(s){
-                s = s || "get";
-                if (s == "get"){
-                        return this.st
-                }else{
-                        this.st = s;
-                        if(!this.wall){
-                                this.refresh();
-                        }
-                }
-        },
-        refresh: function(){
-                this.$el.removeClass().addClass("cell")
-                if(this.st != "off"){
-                        this.$el.addClass(this.st);
-                }
-        },
-        getCoords: function(){
-                var coords;
-                coords = this.id.split(",");
-                coords[0] = parseInt(coords[0]);
-                coords[1] = parseInt(coords[1]);
-                return coords;
-        }
+	state: function(s){
+			s = s || "get";
+			if (s == "get"){
+					return this.st
+			}else{
+				this.st = s;
+			}
+	},
+	refresh: function(){
+			if(this.st != this._state){
+					this.$el.attr("class","cell "+this.st);
+					this._state = this.st;
+			}
+	},
+	getCoords: function(){
+			var coords;
+			coords = this.id.split(",");
+			coords[0] = parseInt(coords[0]);
+			coords[1] = parseInt(coords[1]);
+			return coords;
+	}
+	
 };
-// Game Items
 $.Invaders.Invader = function(inv,game,id){
+	var pos = inv.pos;
 	this.id = id;
 	this.life = 1;
 	this.dead = false;
@@ -371,7 +418,7 @@ $.Invaders.Invader = function(inv,game,id){
 	this.game = game;
 	this.hit = false;
 	this.level = game.level;
-	this.actions = new $.Invaders.Actions(this,inv.pos,this.game.level.step);
+	this.actions = new $.Invaders.Actions(this,[pos[0],pos[1]+(this.game.level.step*this.game.round)],this.game.level.step);
 	this.init();
 };
 $.Invaders.Invader.prototype = {
@@ -449,6 +496,8 @@ $.Invaders.Lasser.prototype = {
 		}else if(cS.indexOf("laser")>=0){
 			console.log("laser")
 			crash = true;
+		}else if(cS.indexOf("bunker")>=0){
+			crash = true;
 		}
 		if(crash){
 			this.off = true;
@@ -465,7 +514,7 @@ $.Invaders.Cannon = function(game){
 };
 $.Invaders.Cannon.prototype = {
 	init: function(){
-		this.game.limit = this.actions.pos[1]-this.game.level.step;
+		this.game.limit = this.actions.pos[1]-(this.game.level.step+30);
 		this.life = this.actions.kindData.life;
 		this.actions.setCells();
 		this.actions.redraw();
@@ -473,16 +522,15 @@ $.Invaders.Cannon.prototype = {
 	go: function(dir){
 		this.actions.dir = dir;
 		this.actions.move();
-		this.hit = false;
 	},
 	shoot: function(){
 		var lsr,
 			pos = this.actions.getCenter();
-		this.hit = false;
 		lsr = new $.Invaders.Lasser(pos,"t",this.game,"cannon");
 		this.game.lasers.push(lsr);
 	},
 	hurt: function(){
+		this.game.wait = 50;
 		if(!this.hit){
 			this.hit = true;
 			this.life--;
@@ -497,6 +545,20 @@ $.Invaders.Cannon.prototype = {
 		this.actions.clear();
 	}
 };
+$.Invaders.Bunker = function(pos,game){
+	this.game = game;
+	this.off = false;
+	this.kind = "bunker";
+	this.actions = new $.Invaders.Actions(this,pos,2);
+	this.actions.dir = false;
+	this.init();
+};
+$.Invaders.Bunker.prototype = {
+	init: function(){
+		this.actions.setCells();
+		this.actions.redraw();
+	}
+};
 $.Invaders.Actions = function(caller,pos,step){
 	this.alive = true;
 	this.caller = caller;
@@ -505,7 +567,7 @@ $.Invaders.Actions = function(caller,pos,step){
 	this.step = step || 1;
 	this.grid = [];
 	this.dir = "r";
-	this.st = (this.kind != "cannon" && this.kind != "laser") ? "inv id" + this.caller.id + " " + this.kind : this.kind ;
+	this.st = (this.kind != "cannon" && this.kind != "laser" && this.kind != "bunker") ? "inv id" + this.caller.id + " " + this.kind : this.kind ;
 	this.init(this.kind,pos)
 };
 $.Invaders.Actions.prototype = {
@@ -565,8 +627,10 @@ $.Invaders.Actions.prototype = {
 			vC = [];
 			for(j=0;j<this.kindData.size[1];j++){
 				vR = this.game.vGrid[i+this.pos[0]][j+this.pos[1]];
-				if(this.kind == "laser" && vR.state() != "off"){
-					this.caller.colition(vR.state());
+				if(this.kind == "laser"){
+					if(vR.state() != "off"){
+						this.caller.colition(vR.state());
+					}
 				}
 				vR.state("off");
 				vC.push(vR);
@@ -575,10 +639,13 @@ $.Invaders.Actions.prototype = {
 		}
 	},
 	clear: function(){
-		var i,j;
+		var i,j,cell;
 		for(i=0;i<this.kindData.size[0];i++){
 			for(j=0;j<this.kindData.size[1];j++){
-				this.grid[i][j].state("off");
+				cell = this.grid[i][j];
+				if(cell.st != "off"){
+					cell.st = "off";
+				}
 			}
 		}
 	},
@@ -592,14 +659,15 @@ $.Invaders.Actions.prototype = {
 		for(i=0,len=data.length;i<len;i++){
 			coord = data[i];
 			cell = this.grid[coord[0]][coord[1]];
-			if(cell.state() == "off"){
+			if(cell.st == "off"){
 				cell.state(this.st);
 			}else{
 				cell.state("off");
 			}
 		}
 	}
-};
+}
+//Game Data
 $.Invaders.kinds = {
 	"c1": {
 		size:[11,8],
@@ -625,6 +693,13 @@ $.Invaders.kinds = {
 		variation:[[2,5],[9,5],[1,6],[3,6],[8,6],[10,6],[0,7],[1,7],[2,7],[3,7],[8,7],[9,7],[10,7],[11,7]],
 		death:[[0,0],[3,0],[7,0],[10,0],[1,1],[4,1],[6,1],[9,1],[2,2],[8,2],[0,3],[10,3],[2,4],[8,4],[1,5],[4,5],[6,5],[9,5],[0,6],[3,6],[7,6],[10,6]]
 	},
+	"bunker" : {
+		size:[12,7],
+		life:0,
+		initial:[[4,0],[5,0],[6,0],[2,1],[3,1],[4,1],[5,1],[6,1],[7,1],[8,1],[1,2],[2,2],[3,2],[4,2],[5,2],[6,2],[7,2],[8,2],[9,2],[0,3],[1,3],[2,3],[3,3],[4,3],[5,3],[6,3],[7,3],[8,3],[9,3],[10,3],[0,4],[1,4],[2,4],[3,4],[4,4],[5,4],[6,4],[7,4],[8,4],[9,4],[10,4],[0,5],[1,5],[2,5],[3,5],[4,5],[5,5],[6,5],[7,5],[8,5],[9,5],[10,5],[0,6],[1,6],[2,6],[8,6],[9,6],[10,6]],
+		variation:[],
+		death:[]
+	},
 	"cannon": {
 		size:[11,7],
 		life:2,
@@ -638,16 +713,11 @@ $.Invaders.kinds = {
 		death:[]
 	}
 };
-$.Invaders.levels = {
-	0: {
+$.Invaders.levels = [
+	{
 		speed: 50,
 		step:5,
-		animation: {
-			sDelay:2,
-			sCount:2,
-			mDelay:5,
-			mCount:5
-		},
+		delay:4,
 		enemies: [
 			{kind:"c1",pos:[73,23]},
 			{kind:"c1",pos:[61,23]},
@@ -670,17 +740,17 @@ $.Invaders.levels = {
 			{kind:"c1",pos:[25,0]},
 			{kind:"c1",pos:[13,0]},
 			{kind:"c1",pos:[1,0]}
+		],
+		bunkers: [
+			[15,110],
+			[40,110],
+			[65,110],
 		]
 	},
-	1: {
+	{
 		speed: 50,
 		step:6,
-		animation: {
-			sDelay:2,
-			sCount:2,
-			mDelay:5,
-			mCount:5
-		},
+		delay:4,
 		enemies: [
 			{kind:"c2",pos:[74,35]},
 			{kind:"c2",pos:[65,35]},
@@ -712,17 +782,13 @@ $.Invaders.levels = {
 			{kind:"c1",pos:[25,0]},
 			{kind:"c1",pos:[13,0]},
 			{kind:"c1",pos:[1,0]}
-		]
+		],
+		bunkers: []
 	},
-	2: {
+	{
 		speed: 50,
 		step:7,
-		animation: {
-			sDelay:2,
-			sCount:2,
-			mDelay:5,
-			mCount:5
-		},
+		delay:3,
 		enemies: [
 			{kind:"c3",pos:[68,35]},
 			{kind:"c3",pos:[55,35]},
@@ -753,9 +819,11 @@ $.Invaders.levels = {
 			{kind:"c1",pos:[25,0]},
 			{kind:"c1",pos:[13,0]},
 			{kind:"c1",pos:[1,0]}
-		]
+		],
+		bunkers: []
 	}
-};
+];
+
 // jQuery Plugin
 $.fn.extend({
 	Invaders: function(params) {
